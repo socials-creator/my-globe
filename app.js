@@ -367,8 +367,8 @@
     });
 
     // Intro camera fly-in
-    world.pointOfView({ lat: 18, lng: 12, altitude: 3.4 }, 0);
-    setTimeout(() => world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 2400), 250);
+    world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 3.4 }, 0);
+    setTimeout(() => world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 2400), 250);
 
     // LOD watcher
     (function tick() {
@@ -400,17 +400,24 @@
     openPanel('Country', name, neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.');
   }
 
-  /* ---------------- Layer bar: auto-hide so idle rotation stays clean ---------------- */
-  let layersHideTimer = null;
-  function scheduleHideLayers(delay = 4000) {
-    clearTimeout(layersHideTimer);
-    layersHideTimer = setTimeout(() => {
-      document.getElementById('layers').classList.add('is-hidden');
+  /* ---------------- Idle UI: layers / dock / search all fade together so
+     rotation stays clean, and come back with a tap ---------------- */
+  const FADE_SELECTOR = '#layers, .control-dock, .search-wrap';
+  let uiHideTimer = null;
+  function scheduleHideUI(delay = 4000) {
+    clearTimeout(uiHideTimer);
+    uiHideTimer = setTimeout(() => {
+      // Don't hide out from under someone actively searching
+      if (document.activeElement && document.activeElement.id === 'search') {
+        scheduleHideUI();
+        return;
+      }
+      document.querySelectorAll(FADE_SELECTOR).forEach(el => el.classList.add('is-hidden'));
     }, delay);
   }
-  function showLayersBar() {
-    document.getElementById('layers').classList.remove('is-hidden');
-    scheduleHideLayers();
+  function showUI() {
+    document.querySelectorAll(FADE_SELECTOR).forEach(el => el.classList.remove('is-hidden'));
+    scheduleHideUI();
   }
 
   /* ---------------- UI wiring ---------------- */
@@ -422,15 +429,16 @@
         state.layers[layer] = !state.layers[layer];
         btn.classList.toggle('is-active', state.layers[layer]);
         refreshLabels();
-        scheduleHideLayers();
       });
     });
 
-    // Tap anywhere outside the layer bar to bring it back
+    // Tap anywhere outside the fading UI to bring it back; tapping inside
+    // any of it just keeps it visible a while longer.
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.layers')) showLayersBar();
+      if (e.target.closest(FADE_SELECTOR)) scheduleHideUI();
+      else showUI();
     });
-    scheduleHideLayers();
+    scheduleHideUI();
 
     // Map / Satellite mode switch
     document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -463,7 +471,9 @@
     // Search
     const input = document.getElementById('search');
     const results = document.getElementById('search-results');
+    input.addEventListener('focus', () => showUI());
     input.addEventListener('input', () => {
+      scheduleHideUI(); // keep the bar up while actively typing
       const q = input.value.trim().toLowerCase();
       results.innerHTML = '';
       if (!q) { results.classList.remove('open'); return; }
@@ -549,7 +559,7 @@
       b.setAttribute('aria-selected', String(active));
     });
 
-    clearTimeout(layersHideTimer);
+    clearTimeout(uiHideTimer);
     document.getElementById('layers').classList.add('is-hidden');
     state.selectedD = null;
     refreshPolygonStyle();
@@ -609,7 +619,7 @@
     controls.autoRotate = true;
     animateAutoRotateSpeed(ROTATE_SPEEDS[state.rotateSpeed] ?? ROTATE_SPEEDS['0.5'], 700, easeOutCubic);
 
-    scheduleHideLayers();
+    scheduleHideUI();
   }
 
   function openPanel(kind, title, sub) {

@@ -159,7 +159,15 @@ body.turbo #globeViz{
   color: var(--cream);
 }
 
-.search-wrap{ position: relative; flex: 1; max-width: 320px; margin-left: auto; }
+.search-wrap{
+  position: relative; flex: 1; max-width: 320px; margin-left: auto;
+  transition: opacity .55s ease, transform .55s ease;
+}
+.search-wrap.is-hidden{
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}
 #search{
   width: 100%;
   background: var(--panel);
@@ -250,6 +258,12 @@ body.turbo #globeViz{
   align-items: flex-end;
   gap: 10px;
   max-height: calc(100vh - var(--safe-t) - var(--safe-b) - 180px);
+  transition: opacity .55s ease, transform .55s ease;
+}
+.control-dock.is-hidden{
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
 }
 
 .mode-switch{
@@ -370,7 +384,7 @@ body.turbo #globeViz{
   font-family: var(--font-display);
   font-weight: 500;
   font-size: 24px;
-  color: var(--cream);
+  color: #5BC97F;
 }
 .panel p#panel-sub{
   margin: 0;

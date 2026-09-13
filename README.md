@@ -1,4 +1,4 @@
-# Atlas — Interactive 3D Globe
+# MyGlobe — Interactive 3D Globe
 
 A touch-friendly, animated 3D globe built for iPhone (and any modern browser). Shows every country/territory/island from `data/world.geojson`, plus continents, oceans, seas, mountain ranges, deserts, rivers and lakes as zoom-aware labels.
 
