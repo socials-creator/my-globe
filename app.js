@@ -3,37 +3,42 @@
 
   /* ---------------- Config ---------------- */
   const GLOBE_RADIUS = 100; // three-globe's internal sphere radius, in world units
+  const SATELLITE_TEXTURE_URL = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+
   const COLORS = {
-    ocean:    '#0d1712',
-    grid:     '#16241d',
-    land:     '#F4F1EA',
-    landEdge: 'rgba(20,18,16,0.55)',
-    hover:    '#D97757',
-    selected: '#D97757',
+    ocean:     '#04122B',   // electric-blue deep base
+    oceanMid:  '#0A6CFF',   // electric blue
+    grid:      '#1958C7',
+    land:      '#232226',   // dark land
+    landEdgeMap: 'rgba(244,241,234,0.30)',
+    landEdgeSat: 'rgba(244,241,234,0.85)',
+    highlight: '#F7F4EC',   // significantly lighter than land, for the single selected country
+    highlightSat: 'rgba(247,244,236,0.55)',
     labelCountry:  '#F4F1EA',
     labelContinent:'#D97757',
-    labelOcean:    '#7FB6B0',
-    labelSea:      '#6FA3A0',
+    labelOcean:    '#8FD0FF',
+    labelSea:      '#6FB6E6',
     labelMountain: '#C7A46B',
     labelDesert:   '#D8B073',
-    labelRiver:    '#7FB0C4',
-    labelLake:     '#7FB0C4',
+    labelRiver:    '#7FD0E6',
+    labelLake:     '#7FD0E6',
   };
 
   // Camera-distance tiers (world units from globe centre). Larger = further away.
-  const TIER_FAR    = 250; // above this: continents + oceans only
-  const TIER_MID    = 150; // between MID and FAR: + countries, seas
+  const TIER_FAR = 250; // above this: continents + oceans only
+  const TIER_MID = 150; // between MID and FAR: + countries, seas
   // below TIER_MID: + terrain / hydro fine features (if their layer is active)
 
   const state = {
     tier: 'far',              // 'far' | 'mid' | 'near'
+    mode: 'map',               // 'map' | 'satellite'
     layers: { countries: true, water: true, terrain: false, hydro: false },
-    hoverD: null,
     selectedD: null,
     world: null,
     countries: [],
     countryLabels: [],
     userInteracted: false,
+    mapTexture: null,
   };
 
   /* ---------------- Starfield (plain 2D canvas, behind the WebGL globe) ---------------- */
@@ -74,7 +79,7 @@
     requestAnimationFrame(drawStars);
   }
 
-  /* ---------------- Procedural ocean texture (graticule) ---------------- */
+  /* ---------------- Procedural ocean texture (graticule), electric blue ---------------- */
   function buildOceanTexture() {
     const w = 1024, h = 512;
     const c = document.createElement('canvas');
@@ -82,13 +87,20 @@
     const ctx = c.getContext('2d');
 
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, '#122019');
-    grad.addColorStop(0.5, COLORS.ocean);
-    grad.addColorStop(1, '#122019');
+    grad.addColorStop(0, '#030F26');
+    grad.addColorStop(0.5, COLORS.oceanMid);
+    grad.addColorStop(1, '#030F26');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = COLORS.grid;
+    // subtle radial glow band to keep the blue feeling electric, not flat
+    const glow = ctx.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, h * 0.9);
+    glow.addColorStop(0, 'rgba(90,170,255,0.35)');
+    glow.addColorStop(1, 'rgba(90,170,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(120,190,255,0.16)';
     ctx.lineWidth = 1;
     for (let lng = 0; lng <= w; lng += w / 12) { // every 30deg
       ctx.beginPath(); ctx.moveTo(lng, 0); ctx.lineTo(lng, h); ctx.stroke();
@@ -97,7 +109,7 @@
       ctx.beginPath(); ctx.moveTo(0, lat); ctx.lineTo(w, lat); ctx.stroke();
     }
     // equator + prime meridian, slightly stronger
-    ctx.strokeStyle = 'rgba(217,119,87,0.10)';
+    ctx.strokeStyle = 'rgba(190,225,255,0.22)';
     ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
 
@@ -141,6 +153,67 @@
     state.world.labelsData(currentLabels());
   }
 
+  /* ---------------- Polygon styling (mode + single-selection aware) ---------------- */
+  function polygonAltitudeFn(d) {
+    return d === state.selectedD ? 0.05 : 0.006;
+  }
+  function polygonCapColorFn(d) {
+    if (d === state.selectedD) {
+      return state.mode === 'satellite' ? COLORS.highlightSat : COLORS.highlight;
+    }
+    return state.mode === 'satellite' ? 'rgba(0,0,0,0)' : COLORS.land;
+  }
+  function polygonStrokeColorFn() {
+    return state.mode === 'satellite' ? COLORS.landEdgeSat : COLORS.landEdgeMap;
+  }
+  function polygonSideColorFn() {
+    return state.mode === 'satellite' ? 'rgba(0,0,0,0)' : 'rgba(10,9,8,0.4)';
+  }
+  function refreshPolygonStyle() {
+    state.world
+      .polygonAltitude(polygonAltitudeFn)
+      .polygonCapColor(polygonCapColorFn)
+      .polygonSideColor(polygonSideColorFn)
+      .polygonStrokeColor(polygonStrokeColorFn);
+  }
+
+  /* ---------------- Smooth camera dolly (for +/- buttons) ---------------- */
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function smoothZoomBy(factor, duration = 480) {
+    const controls = state.world.controls();
+    const camera = state.world.camera();
+    const dir = camera.position.clone().normalize();
+    const startDist = camera.position.length();
+    let targetDist = startDist * factor;
+    targetDist = Math.max(controls.minDistance, Math.min(controls.maxDistance, targetDist));
+    const t0 = performance.now();
+    controls.enabled = false;
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = easeOutCubic(p);
+      const dist = startDist + (targetDist - startDist) * eased;
+      camera.position.copy(dir.clone().multiplyScalar(dist));
+      controls.update();
+      if (p < 1) requestAnimationFrame(step);
+      else controls.enabled = true;
+    })(t0);
+  }
+
+  /* ---------------- Auto-rotate: ease out instead of a hard stop ---------------- */
+  function easeOutAutoRotate() {
+    const controls = state.world.controls();
+    const startSpeed = controls.autoRotateSpeed;
+    const t0 = performance.now();
+    const duration = 700;
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      controls.autoRotateSpeed = startSpeed * (1 - easeOutCubic(p));
+      if (p < 1) requestAnimationFrame(step);
+      else controls.autoRotate = false;
+    })(t0);
+  }
+
   /* ---------------- Init ---------------- */
   async function init() {
     initStars();
@@ -155,31 +228,24 @@
       return { name: f.properties.name, lat: c[1], lng: c[0], category: 'country', feature: f };
     });
 
-    const oceanTexture = buildOceanTexture();
+    state.mapTexture = buildOceanTexture();
 
     const world = Globe()(document.getElementById('globeViz'))
       .width(window.innerWidth)
       .height(window.innerHeight)
       .backgroundColor('rgba(0,0,0,0)')
-      .globeImageUrl(oceanTexture)
+      .globeImageUrl(state.mapTexture)
       .showAtmosphere(true)
       .atmosphereColor('#D97757')
       .atmosphereAltitude(0.2)
 
       .polygonsData(state.countries)
-      .polygonAltitude(d => (d === state.selectedD ? 0.045 : d === state.hoverD ? 0.02 : 0.006))
-      .polygonCapColor(d => (d === state.selectedD || d === state.hoverD) ? COLORS.hover : COLORS.land)
-      .polygonSideColor(() => 'rgba(20,18,16,0.35)')
-      .polygonStrokeColor(() => COLORS.landEdge)
-      .polygonsTransitionDuration(350)
-      .onPolygonHover(d => {
-        if (d === state.hoverD) return;
-        state.hoverD = d;
-        world
-          .polygonAltitude(x => (x === state.selectedD ? 0.045 : x === state.hoverD ? 0.02 : 0.006))
-          .polygonCapColor(x => (x === state.selectedD || x === state.hoverD) ? COLORS.hover : COLORS.land);
-        document.body.style.cursor = d ? 'pointer' : 'default';
-      })
+      .polygonAltitude(polygonAltitudeFn)
+      .polygonCapColor(polygonCapColorFn)
+      .polygonSideColor(polygonSideColorFn)
+      .polygonStrokeColor(polygonStrokeColorFn)
+      .polygonsTransitionDuration(420)
+      .onPolygonHover(d => { document.body.style.cursor = d ? 'pointer' : 'default'; })
       .onPolygonClick(d => selectCountry(d))
 
       .labelsData([])
@@ -196,12 +262,12 @@
 
     state.world = world;
 
-    // Controls
+    // Controls — tuned for seamless, inertial rotation & zoom
     const controls = world.controls();
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.rotateSpeed = 0.55;
-    controls.zoomSpeed = 0.65;
+    controls.dampingFactor = 0.045;
+    controls.rotateSpeed = 0.5;
+    controls.zoomSpeed = 0.55;
     controls.minDistance = GLOBE_RADIUS + 1;   // maximum zoom-in: just above the surface
     controls.maxDistance = GLOBE_RADIUS * 5;   // maximum zoom-out
     controls.autoRotate = true;
@@ -209,14 +275,14 @@
     controls.addEventListener('start', () => {
       if (!state.userInteracted) {
         state.userInteracted = true;
-        controls.autoRotate = false;
+        easeOutAutoRotate();
         fadeHint();
       }
     });
 
     // Intro camera fly-in
     world.pointOfView({ lat: 18, lng: 12, altitude: 3.4 }, 0);
-    setTimeout(() => world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 2200), 250);
+    setTimeout(() => world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 2400), 250);
 
     // LOD watcher
     (function tick() {
@@ -235,13 +301,14 @@
 
   function selectCountry(feat) {
     if (!feat) return;
-    state.selectedD = feat;
-    state.world
-      .polygonAltitude(x => (x === state.selectedD ? 0.045 : x === state.hoverD ? 0.02 : 0.006))
-      .polygonCapColor(x => (x === state.selectedD || x === state.hoverD) ? COLORS.hover : COLORS.land);
+    // Tapping the already-selected country deselects it; otherwise it becomes the sole selection.
+    state.selectedD = (state.selectedD === feat) ? null : feat;
+    refreshPolygonStyle();
+
+    if (!state.selectedD) { closePanel(); return; }
 
     const c = d3.geoCentroid(feat);
-    state.world.pointOfView({ lat: c[1], lng: c[0], altitude: 0.55 }, 1400);
+    state.world.pointOfView({ lat: c[1], lng: c[0], altitude: 0.55 }, 1500);
 
     const { name, neighbors } = feat.properties;
     openPanel('Country', name, neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.');
@@ -259,26 +326,27 @@
       });
     });
 
-    // Zoom buttons
-    const zoomBy = (factor) => {
-      const controls = world.controls();
-      const camera = world.camera();
-      const dir = camera.position.clone().normalize();
-      let dist = camera.position.length() * factor;
-      dist = Math.max(controls.minDistance, Math.min(controls.maxDistance, dist));
-      camera.position.copy(dir.multiplyScalar(dist));
-      controls.update();
-    };
-    document.getElementById('zoom-in').addEventListener('click', () => zoomBy(0.72));
-    document.getElementById('zoom-out').addEventListener('click', () => zoomBy(1.38));
+    // Map / Satellite mode switch
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
+    // Zoom buttons — smooth, eased dolly
+    document.getElementById('zoom-in').addEventListener('click', () => smoothZoomBy(0.7));
+    document.getElementById('zoom-out').addEventListener('click', () => smoothZoomBy(1.4));
     document.getElementById('recenter').addEventListener('click', () => {
       state.selectedD = null;
+      refreshPolygonStyle();
       closePanel();
-      world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 1200);
+      world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 1300);
     });
 
     // Panel close
-    document.getElementById('panel-close').addEventListener('click', closePanel);
+    document.getElementById('panel-close').addEventListener('click', () => {
+      state.selectedD = null;
+      refreshPolygonStyle();
+      closePanel();
+    });
 
     // Search
     const input = document.getElementById('search');
@@ -296,6 +364,7 @@
         item.className = 'search-item';
         item.textContent = f.properties.name;
         item.addEventListener('click', () => {
+          state.selectedD = null; // ensure the new pick becomes the sole selection
           selectCountry(f);
           results.classList.remove('open');
           input.value = f.properties.name;
@@ -311,6 +380,26 @@
     });
   }
 
+  /* ---------------- Map / Satellite mode ---------------- */
+  function setMode(mode) {
+    if (mode === state.mode) return;
+    state.mode = mode;
+
+    document.querySelectorAll('.mode-btn').forEach(b => {
+      const active = b.dataset.mode === mode;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+
+    const globeEl = document.getElementById('globeViz');
+    globeEl.classList.add('crossfade');
+    setTimeout(() => {
+      state.world.globeImageUrl(mode === 'satellite' ? SATELLITE_TEXTURE_URL : state.mapTexture);
+      refreshPolygonStyle();
+      requestAnimationFrame(() => globeEl.classList.remove('crossfade'));
+    }, 260);
+  }
+
   function openPanel(kind, title, sub) {
     document.getElementById('panel-kind').textContent = kind;
     document.getElementById('panel-title').textContent = title;
@@ -319,12 +408,6 @@
   }
   function closePanel() {
     document.getElementById('panel').classList.remove('open');
-    state.selectedD = null;
-    if (state.world) {
-      state.world
-        .polygonAltitude(x => (x === state.hoverD ? 0.02 : 0.006))
-        .polygonCapColor(x => (x === state.hoverD ? COLORS.hover : COLORS.land));
-    }
   }
   function fadeHint() {
     document.getElementById('hint').classList.add('faded');
