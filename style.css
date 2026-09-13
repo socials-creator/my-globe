@@ -84,35 +84,35 @@ html, body{
 /* ---------- Corner sun: subtle, realistic, breathes in and out ---------- */
 #sun{
   position: fixed;
-  top: -9%; right: -7%;
-  width: 240px; height: 240px;
+  top: -3%; right: -2%;
+  width: 60px; height: 60px;
   z-index: 0;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle at 36% 34%,
-    #FFF8E6 0%, #FFE3A8 14%, #FFC373 32%, #FF9E56 52%,
-    rgba(255,140,70,0.28) 68%, rgba(255,140,70,0) 76%);
-  filter: blur(0.5px);
+  background: radial-gradient(circle at 40% 38%,
+    #FFF6E4 0%, #FFE2A6 20%, #FFC988 42%, #FFAE72 62%,
+    rgba(255,170,110,0.16) 78%, rgba(255,170,110,0) 88%);
+  filter: blur(0.4px);
   opacity: 0;
   will-change: opacity, transform;
-  animation: sunCycle 32s ease-in-out infinite;
+  animation: sunCycle 34s ease-in-out infinite;
 }
 #sun::after{
   content:'';
-  position: absolute; inset: -70%;
+  position: absolute; inset: -180%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,196,140,0.22) 0%, rgba(255,196,140,0) 70%);
-  filter: blur(22px);
+  background: radial-gradient(circle, rgba(255,196,150,0.10) 0%, rgba(255,196,150,0) 70%);
+  filter: blur(18px);
 }
 @keyframes sunCycle{
-  0%   { opacity: 0;    transform: scale(.86); }
-  14%  { opacity: .5;   transform: scale(1);   }
-  45%  { opacity: .68;  transform: scale(1.035); }
-  78%  { opacity: .28;  transform: scale(.96); }
-  100% { opacity: 0;    transform: scale(.86); }
+  0%   { opacity: 0;    transform: scale(.9); }
+  14%  { opacity: .32;  transform: scale(1);   }
+  45%  { opacity: .42;  transform: scale(1.02); }
+  78%  { opacity: .18;  transform: scale(.96); }
+  100% { opacity: 0;    transform: scale(.9); }
 }
 @media (min-width: 720px){
-  #sun{ width: 320px; height: 320px; top: -7%; right: -5%; }
+  #sun{ width: 78px; height: 78px; top: -2%; right: -1.5%; }
 }
 
 #globeViz{
