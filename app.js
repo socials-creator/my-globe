@@ -450,7 +450,7 @@
       state.selectedD = null;
       refreshPolygonStyle();
       closePanel();
-      world.pointOfView({ lat: 18, lng: 12, altitude: 2.15 }, 1300);
+      world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 1300);
     });
 
     // Panel close
