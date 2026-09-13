@@ -1,1 +1,103 @@
+// Curated geographic features not present as polygons in world.geojson.
+// Coordinates are approximate representative points (label placement only),
+// sourced from well-established geographic reference points.
+// category: continent | ocean | sea | mountain | desert | river | lake
 
+const EARTH_FEATURES = [
+  // Continents (shown only when fully zoomed out)
+  { name: 'Africa', lat: 2, lng: 21, category: 'continent' },
+  { name: 'Asia', lat: 48, lng: 100, category: 'continent' },
+  { name: 'Europe', lat: 54, lng: 20, category: 'continent' },
+  { name: 'North America', lat: 48, lng: -100, category: 'continent' },
+  { name: 'South America', lat: -16, lng: -60, category: 'continent' },
+  { name: 'Oceania', lat: -24, lng: 137, category: 'continent' },
+  { name: 'Antarctica', lat: -82, lng: 0, category: 'continent' },
+
+  // Oceans
+  { name: 'Pacific Ocean', lat: 0, lng: -155, category: 'ocean' },
+  { name: 'Atlantic Ocean', lat: 0, lng: -30, category: 'ocean' },
+  { name: 'Indian Ocean', lat: -22, lng: 78, category: 'ocean' },
+  { name: 'Arctic Ocean', lat: 84, lng: 0, category: 'ocean' },
+  { name: 'Southern Ocean', lat: -67, lng: 20, category: 'ocean' },
+
+  // Seas, gulfs, bays, straits
+  { name: 'Mediterranean Sea', lat: 35, lng: 18, category: 'sea' },
+  { name: 'Caribbean Sea', lat: 15, lng: -75, category: 'sea' },
+  { name: 'Red Sea', lat: 20, lng: 38, category: 'sea' },
+  { name: 'Black Sea', lat: 43.5, lng: 35, category: 'sea' },
+  { name: 'Caspian Sea', lat: 42, lng: 51, category: 'sea' },
+  { name: 'Sea of Japan', lat: 40, lng: 135, category: 'sea' },
+  { name: 'South China Sea', lat: 12, lng: 114, category: 'sea' },
+  { name: 'Gulf of Mexico', lat: 25, lng: -90, category: 'sea' },
+  { name: 'Persian Gulf', lat: 27, lng: 51, category: 'sea' },
+  { name: 'Bering Sea', lat: 58, lng: -178, category: 'sea' },
+  { name: 'Sea of Okhotsk', lat: 55, lng: 150, category: 'sea' },
+  { name: 'Baltic Sea', lat: 58, lng: 20, category: 'sea' },
+  { name: 'North Sea', lat: 56, lng: 3, category: 'sea' },
+  { name: 'Arabian Sea', lat: 15, lng: 65, category: 'sea' },
+  { name: 'Bay of Bengal', lat: 15, lng: 88, category: 'sea' },
+  { name: 'Gulf of Guinea', lat: 2, lng: 3, category: 'sea' },
+  { name: 'Coral Sea', lat: -18, lng: 152, category: 'sea' },
+  { name: 'Tasman Sea', lat: -40, lng: 160, category: 'sea' },
+  { name: 'Hudson Bay', lat: 60, lng: -85, category: 'sea' },
+  { name: 'Sea of Marmara', lat: 40.7, lng: 28, category: 'sea' },
+  { name: 'Andaman Sea', lat: 10, lng: 96, category: 'sea' },
+  { name: 'Drake Passage', lat: -60, lng: -65, category: 'sea' },
+
+  // Mountain ranges
+  { name: 'Himalayas', lat: 28.5, lng: 84, category: 'mountain' },
+  { name: 'Andes', lat: -22, lng: -68, category: 'mountain' },
+  { name: 'Rocky Mountains', lat: 45, lng: -110, category: 'mountain' },
+  { name: 'Alps', lat: 46.5, lng: 10, category: 'mountain' },
+  { name: 'Ural Mountains', lat: 60, lng: 59, category: 'mountain' },
+  { name: 'Atlas Mountains', lat: 31, lng: -7, category: 'mountain' },
+  { name: 'Great Dividing Range', lat: -25, lng: 148, category: 'mountain' },
+  { name: 'Caucasus Mountains', lat: 42.5, lng: 45, category: 'mountain' },
+  { name: 'Appalachian Mountains', lat: 37, lng: -81, category: 'mountain' },
+  { name: 'Alaska Range', lat: 63, lng: -150, category: 'mountain' },
+  { name: 'Karakoram', lat: 35.5, lng: 76.5, category: 'mountain' },
+  { name: 'Tian Shan', lat: 42, lng: 78, category: 'mountain' },
+  { name: 'Drakensberg', lat: -29, lng: 29, category: 'mountain' },
+  { name: 'Zagros Mountains', lat: 33, lng: 47, category: 'mountain' },
+  { name: 'Pyrenees', lat: 42.6, lng: 1, category: 'mountain' },
+  { name: 'Ethiopian Highlands', lat: 9, lng: 39, category: 'mountain' },
+
+  // Deserts
+  { name: 'Sahara Desert', lat: 23, lng: 13, category: 'desert' },
+  { name: 'Arabian Desert', lat: 24, lng: 47, category: 'desert' },
+  { name: 'Gobi Desert', lat: 43, lng: 103, category: 'desert' },
+  { name: 'Kalahari Desert', lat: -23, lng: 22, category: 'desert' },
+  { name: 'Atacama Desert', lat: -24, lng: -69, category: 'desert' },
+  { name: 'Great Victoria Desert', lat: -29, lng: 127, category: 'desert' },
+  { name: 'Sonoran Desert', lat: 32, lng: -114, category: 'desert' },
+  { name: 'Thar Desert', lat: 27, lng: 71, category: 'desert' },
+  { name: 'Patagonian Desert', lat: -44, lng: -68, category: 'desert' },
+  { name: 'Namib Desert', lat: -24, lng: 15, category: 'desert' },
+  { name: 'Taklamakan Desert', lat: 39, lng: 83, category: 'desert' },
+
+  // Rivers (approximate midpoint)
+  { name: 'Amazon River', lat: -3, lng: -60, category: 'river' },
+  { name: 'Nile River', lat: 22, lng: 31, category: 'river' },
+  { name: 'Mississippi River', lat: 32, lng: -91, category: 'river' },
+  { name: 'Yangtze River', lat: 30.5, lng: 114, category: 'river' },
+  { name: 'Congo River', lat: -1, lng: 17, category: 'river' },
+  { name: 'Mekong River', lat: 15, lng: 105, category: 'river' },
+  { name: 'Volga River', lat: 48, lng: 46, category: 'river' },
+  { name: 'Ganges River', lat: 25, lng: 83, category: 'river' },
+  { name: 'Danube River', lat: 45, lng: 21, category: 'river' },
+  { name: 'Yenisei River', lat: 63, lng: 90, category: 'river' },
+  { name: 'Amur River', lat: 53, lng: 130, category: 'river' },
+  { name: 'Niger River', lat: 12, lng: 3, category: 'river' },
+  { name: 'Murray River', lat: -34, lng: 143, category: 'river' },
+  { name: 'Rhine River', lat: 50, lng: 7, category: 'river' },
+  { name: 'Indus River', lat: 28, lng: 69, category: 'river' },
+
+  // Lakes
+  { name: 'Lake Superior', lat: 47.7, lng: -87.5, category: 'lake' },
+  { name: 'Lake Victoria', lat: -1, lng: 33, category: 'lake' },
+  { name: 'Lake Baikal', lat: 53.5, lng: 108, category: 'lake' },
+  { name: 'Great Bear Lake', lat: 66, lng: -120, category: 'lake' },
+  { name: 'Lake Tanganyika', lat: -6, lng: 29.5, category: 'lake' },
+  { name: 'Lake Titicaca', lat: -15.9, lng: -69.3, category: 'lake' },
+  { name: 'Lake Michigan', lat: 44, lng: -87, category: 'lake' },
+];
