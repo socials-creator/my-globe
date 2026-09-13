@@ -32,6 +32,9 @@
   // Rotation speed tiers. 0.35 was the app's original/default speed — that is
   // now the "0.5x" tier, with 1x and 2x scaled up from it.
   const ROTATE_SPEEDS = { '0.5': 0.35, '1': 0.7, '2': 1.4 };
+  // Fun easter-egg tier: a lightweight "toy globe" that spins way past 10x.
+  const TURBO_ROTATE_SPEED = 5.25;   // 15x the original 0.35 baseline
+  const TURBO_ALTITUDE = 3.4;        // zoomed well out, so it reads as a small distant planet
 
   const state = {
     tier: 'far',              // 'far' | 'mid' | 'near'
@@ -43,7 +46,11 @@
     countryLabels: [],
     userInteracted: false,
     mapTexture: null,
+    turboTexture: null,
     rotateSpeed: '0.5',
+    prevRotateSpeed: '0.5',
+    turbo: false,
+    prevPOV: null,
     visible: true,
   };
 
@@ -124,6 +131,45 @@
     return c.toDataURL('image/png');
   }
 
+  /* ---------------- Turbo mode: tiny, cheap, cartoon "toy globe" texture ----------------
+     Deliberately low-res, no coastlines/borders — a handful of soft blob shapes on a
+     flat blue base. It's a fraction of the weight of the real ocean texture, and with
+     polygons/labels stripped out entirely, it's light enough to spin very fast smoothly. */
+  function buildCartoonTexture() {
+    const w = 128, h = 64;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#1D66D6');
+    grad.addColorStop(0.5, '#2F8CF0');
+    grad.addColorStop(1, '#1D66D6');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Loose, rounded "continent" blobs — playful shapes, not real coastlines
+    const blobs = [
+      { x: 0.16, y: 0.40, r: 0.085 }, { x: 0.22, y: 0.27, r: 0.055 }, { x: 0.19, y: 0.60, r: 0.06 },
+      { x: 0.47, y: 0.26, r: 0.07 },  { x: 0.50, y: 0.40, r: 0.065 }, { x: 0.60, y: 0.58, r: 0.075 },
+      { x: 0.74, y: 0.30, r: 0.095 }, { x: 0.85, y: 0.42, r: 0.055 }, { x: 0.86, y: 0.66, r: 0.05 },
+    ];
+    ctx.fillStyle = '#57B653';
+    blobs.forEach(b => {
+      ctx.beginPath();
+      ctx.ellipse(b.x * w, b.y * h, b.r * w, b.r * h * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // A soft highlight sheen — gives it a glossy toy-globe feel
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.32, h * 0.22, w * 0.28, h * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    return c.toDataURL('image/png');
+  }
+
   /* ---------------- Label sizing / visibility helpers ---------------- */
   const SIZE_BY_CATEGORY = {
     continent: 3.1, ocean: 1.55, sea: 1.05,
@@ -158,6 +204,7 @@
   }
 
   function refreshLabels() {
+    if (state.turbo) { state.world.labelsData([]); return; }
     state.world.labelsData(currentLabels());
   }
 
@@ -187,6 +234,21 @@
 
   /* ---------------- Smooth camera dolly (for +/- buttons) ---------------- */
   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeOutBack(t) {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function animateAutoRotateSpeed(target, duration, easing) {
+    const controls = state.world.controls();
+    const start = controls.autoRotateSpeed;
+    const t0 = performance.now();
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      controls.autoRotateSpeed = start + (target - start) * easing(p);
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  }
 
   function smoothZoomBy(factor, duration = 480) {
     const controls = state.world.controls();
@@ -237,6 +299,7 @@
     });
 
     state.mapTexture = buildOceanTexture();
+    state.turboTexture = buildCartoonTexture();
 
     const world = Globe({
       rendererConfig: { antialias: true, alpha: true, powerPreference: 'high-performance' }
@@ -257,6 +320,7 @@
       .polygonsTransitionDuration(420)
       .onPolygonHover(d => { document.body.style.cursor = d ? 'pointer' : 'default'; })
       .onPolygonClick(d => selectCountry(d))
+      .onGlobeClick(() => { if (state.turbo) exitTurbo(); })
 
       .labelsData([])
       .labelLat(d => d.lat)
@@ -379,9 +443,10 @@
     });
 
     // Zoom buttons — smooth, eased dolly
-    document.getElementById('zoom-in').addEventListener('click', () => smoothZoomBy(0.7));
-    document.getElementById('zoom-out').addEventListener('click', () => smoothZoomBy(1.4));
+    document.getElementById('zoom-in').addEventListener('click', () => { if (state.turbo) exitTurbo(); smoothZoomBy(0.7); });
+    document.getElementById('zoom-out').addEventListener('click', () => { if (state.turbo) exitTurbo(); smoothZoomBy(1.4); });
     document.getElementById('recenter').addEventListener('click', () => {
+      if (state.turbo) exitTurbo();
       state.selectedD = null;
       refreshPolygonStyle();
       closePanel();
@@ -411,6 +476,7 @@
         item.className = 'search-item';
         item.textContent = f.properties.name;
         item.addEventListener('click', () => {
+          if (state.turbo) exitTurbo();
           state.selectedD = null; // ensure the new pick becomes the sole selection
           selectCountry(f);
           results.classList.remove('open');
@@ -429,6 +495,7 @@
 
   /* ---------------- Map / Satellite mode ---------------- */
   function setMode(mode) {
+    if (state.turbo) exitTurbo();
     if (mode === state.mode) return;
     state.mode = mode;
 
@@ -449,7 +516,11 @@
 
   /* ---------------- Rotation speed ---------------- */
   function setRotateSpeed(val, world) {
+    if (val === 'turbo') { enterTurbo(world); return; }
+    if (state.turbo) { exitTurbo(); }
+
     state.rotateSpeed = val;
+    state.prevRotateSpeed = val;
     document.querySelectorAll('.speed-btn').forEach(b => {
       const active = b.dataset.speed === val;
       b.classList.toggle('is-active', active);
@@ -458,6 +529,83 @@
     const controls = world.controls();
     controls.autoRotateSpeed = ROTATE_SPEEDS[val];
     controls.autoRotate = true; // picking a speed resumes/keeps the globe spinning
+  }
+
+  /* ---------------- Turbo: fun, lightweight, cartoon "toy globe" mode ----------------
+     Strips out the country polygons and every label (the app's actual "weight"),
+     swaps in a tiny low-res texture, zooms out, and spins fast with a bouncy,
+     cartoon-ish speed ramp. Any real interaction (mode switch, zoom, search,
+     recenter, or just tapping the globe) eases it back to normal. */
+  function enterTurbo(world) {
+    if (state.turbo) return;
+    state.prevRotateSpeed = state.rotateSpeed;
+    state.rotateSpeed = 'turbo';
+    state.turbo = true;
+    state.prevPOV = world.pointOfView();
+
+    document.querySelectorAll('.speed-btn').forEach(b => {
+      const active = b.dataset.speed === 'turbo';
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+
+    clearTimeout(layersHideTimer);
+    document.getElementById('layers').classList.add('is-hidden');
+    state.selectedD = null;
+    refreshPolygonStyle();
+    closePanel();
+
+    const globeEl = document.getElementById('globeViz');
+    document.body.classList.add('turbo');
+    globeEl.classList.add('crossfade');
+    setTimeout(() => {
+      world.globeImageUrl(state.turboTexture);
+      world.polygonsData([]);
+      refreshLabels();
+      requestAnimationFrame(() => globeEl.classList.remove('crossfade'));
+    }, 260);
+
+    world.pointOfView({ lat: state.prevPOV.lat, lng: state.prevPOV.lng, altitude: TURBO_ALTITUDE }, 900);
+
+    const controls = world.controls();
+    controls.autoRotate = true;
+    animateAutoRotateSpeed(TURBO_ROTATE_SPEED, 900, easeOutBack);
+
+    globeEl.classList.add('turbo-pop');
+    setTimeout(() => globeEl.classList.remove('turbo-pop'), 650);
+  }
+
+  function exitTurbo() {
+    if (!state.turbo) return;
+    state.turbo = false;
+    state.rotateSpeed = state.prevRotateSpeed;
+
+    document.querySelectorAll('.speed-btn').forEach(b => {
+      const active = b.dataset.speed === state.rotateSpeed;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+
+    document.body.classList.remove('turbo');
+
+    const world = state.world;
+    const globeEl = document.getElementById('globeViz');
+    globeEl.classList.add('crossfade');
+    setTimeout(() => {
+      world.globeImageUrl(state.mode === 'satellite' ? SATELLITE_TEXTURE_URL : state.mapTexture);
+      world.polygonsData(state.countries);
+      refreshPolygonStyle();
+      refreshLabels();
+      requestAnimationFrame(() => globeEl.classList.remove('crossfade'));
+    }, 260);
+
+    if (state.prevPOV) world.pointOfView(state.prevPOV, 900);
+
+    const controls = world.controls();
+    controls.autoRotate = true;
+    animateAutoRotateSpeed(ROTATE_SPEEDS[state.rotateSpeed] ?? ROTATE_SPEEDS['0.5'], 700, easeOutCubic);
+
+    scheduleHideLayers();
   }
 
   function openPanel(kind, title, sub) {
