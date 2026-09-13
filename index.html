@@ -56,24 +56,25 @@
     <button class="chip" data-layer="hydro">Rivers &amp; Lakes</button>
   </nav>
 
-  <!-- Map / Satellite mode -->
-  <div class="mode-switch" role="tablist" aria-label="Globe style">
-    <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
-    <button class="mode-btn" data-mode="satellite" role="tab" aria-selected="false">Satellite</button>
-  </div>
+  <!-- Right-side control dock: mode, rotation speed, zoom — stacked as one
+       column so nothing can overlap the country panel or itself in landscape -->
+  <div class="control-dock" id="control-dock">
+    <div class="mode-switch" role="tablist" aria-label="Globe style">
+      <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
+      <button class="mode-btn" data-mode="satellite" role="tab" aria-selected="false">Satellite</button>
+    </div>
 
-  <!-- Rotation speed -->
-  <div class="speed-switch" role="tablist" aria-label="Rotation speed">
-    <button class="speed-btn is-active" data-speed="0.5" role="tab" aria-selected="true">0.5×</button>
-    <button class="speed-btn" data-speed="1" role="tab" aria-selected="false">1×</button>
-    <button class="speed-btn" data-speed="2" role="tab" aria-selected="false">2×</button>
-  </div>
+    <div class="speed-switch" role="tablist" aria-label="Rotation speed">
+      <button class="speed-btn is-active" data-speed="0.5" role="tab" aria-selected="true">0.5×</button>
+      <button class="speed-btn" data-speed="1" role="tab" aria-selected="false">1×</button>
+      <button class="speed-btn" data-speed="2" role="tab" aria-selected="false">2×</button>
+    </div>
 
-  <!-- Zoom controls -->
-  <div class="zoom-controls" aria-hidden="true">
-    <button id="zoom-in" aria-label="Zoom in">+</button>
-    <button id="zoom-out" aria-label="Zoom out">−</button>
-    <button id="recenter" aria-label="Reset view">⟲</button>
+    <div class="zoom-controls" aria-hidden="true">
+      <button id="zoom-in" aria-label="Zoom in">+</button>
+      <button id="zoom-out" aria-label="Zoom out">−</button>
+      <button id="recenter" aria-label="Reset view">⟲</button>
+    </div>
   </div>
 
   <!-- Info panel -->

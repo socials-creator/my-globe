@@ -225,12 +225,20 @@ html, body{
   background: var(--accent-soft);
 }
 
-/* ---------- Map / Satellite switch ---------- */
-.mode-switch{
+/* ---------- Right-side control dock (mode, speed, zoom) ---------- */
+.control-dock{
   position: fixed;
   top: calc(var(--safe-t) + 114px);
-  right: 18px;
+  right: calc(var(--safe-r) + 18px);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-height: calc(100vh - var(--safe-t) - var(--safe-b) - 180px);
+}
+
+.mode-switch{
   display: flex;
   background: var(--panel);
   backdrop-filter: blur(14px) saturate(140%);
@@ -257,10 +265,6 @@ html, body{
 
 /* ---------- Rotation speed switch ---------- */
 .speed-switch{
-  position: fixed;
-  top: calc(var(--safe-t) + 160px);
-  right: 18px;
-  z-index: 10;
   display: flex;
   background: var(--panel);
   backdrop-filter: blur(14px) saturate(140%);
@@ -287,10 +291,6 @@ html, body{
 
 /* ---------- Zoom controls ---------- */
 .zoom-controls{
-  position: fixed;
-  right: calc(var(--safe-r) + 16px);
-  bottom: calc(var(--safe-b) + 110px);
-  z-index: 10;
   display:flex; flex-direction:column;
   background: var(--panel);
   backdrop-filter: blur(14px) saturate(140%);
@@ -383,4 +383,13 @@ html, body{
 @media (min-width: 720px){
   .panel{ left: auto; right: 24px; bottom: 24px; width: 360px; margin: 0; }
   .search-wrap{ max-width: 280px; }
+}
+
+/* Short / landscape screens: shrink the dock and pull the panel out from
+   under it so nothing overlaps, regardless of device width */
+@media (orientation: landscape) and (max-height: 500px){
+  .control-dock{ top: calc(var(--safe-t) + 96px); gap: 6px; }
+  .mode-btn, .speed-btn{ padding: 5px 9px; font-size: 11px; }
+  .zoom-controls button{ width: 34px; height: 34px; font-size: 15px; }
+  .panel{ left: 18px; right: auto; width: min(380px, calc(100% - 130px)); margin: 0; }
 }
