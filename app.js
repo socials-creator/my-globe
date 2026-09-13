@@ -33,7 +33,7 @@
   // now the "0.5x" tier, with 1x and 2x scaled up from it.
   const ROTATE_SPEEDS = { '0.5': 0.35, '1': 0.7, '2': 1.4 };
   // Fun easter-egg tier: a lightweight "toy globe" that spins way past 10x.
-  const TURBO_ROTATE_SPEED = 5.25;   // 15x the original 0.35 baseline
+  const TURBO_ROTATE_SPEED = 35;     // ~100x the original 0.35 baseline
   const TURBO_ALTITUDE = 3.4;        // zoomed well out, so it reads as a small distant planet
 
   const state = {
@@ -136,7 +136,7 @@
      flat blue base. It's a fraction of the weight of the real ocean texture, and with
      polygons/labels stripped out entirely, it's light enough to spin very fast smoothly. */
   function buildCartoonTexture() {
-    const w = 128, h = 64;
+    const w = 64, h = 32;
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
@@ -182,7 +182,7 @@
   };
 
   function visibleForTier(cat) {
-    if (cat === 'continent') return true;
+    if (cat === 'continent') return state.layers.countries;
     if (cat === 'ocean') return true;
     if (cat === 'sea') return state.tier !== 'far';
     if (cat === 'country') return state.tier !== 'far' && state.layers.countries;
@@ -192,7 +192,7 @@
   }
   function categoryLayerActive(cat) {
     if (cat === 'ocean' || cat === 'sea') return state.layers.water;
-    if (cat === 'country' || cat === 'continent') return true;
+    if (cat === 'country' || cat === 'continent') return state.layers.countries;
     if (cat === 'mountain' || cat === 'desert') return state.layers.terrain;
     if (cat === 'river' || cat === 'lake') return state.layers.hydro;
     return true;
@@ -561,6 +561,8 @@
     setTimeout(() => {
       world.globeImageUrl(state.turboTexture);
       world.polygonsData([]);
+      world.showAtmosphere(false);
+      world.renderer().setPixelRatio(1); // extra headroom for a very fast spin
       refreshLabels();
       requestAnimationFrame(() => globeEl.classList.remove('crossfade'));
     }, 260);
@@ -594,6 +596,8 @@
     setTimeout(() => {
       world.globeImageUrl(state.mode === 'satellite' ? SATELLITE_TEXTURE_URL : state.mapTexture);
       world.polygonsData(state.countries);
+      world.showAtmosphere(true);
+      world.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       refreshPolygonStyle();
       refreshLabels();
       requestAnimationFrame(() => globeEl.classList.remove('crossfade'));
