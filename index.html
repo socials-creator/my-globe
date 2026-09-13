@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Atlas — Interactive Globe</title>
+<meta name="description" content="An interactive 3D globe of every country, territory and island, with oceans, mountains, deserts, rivers and lakes." />
+
+<!-- iPhone / add-to-homescreen -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Atlas" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#141210" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" href="icon.png" />
+
+<link rel="preconnect" href="https://unpkg.com" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Intro loader -->
+<div id="loader">
+  <div class="loader-globe">
+    <span></span><span></span><span></span>
+  </div>
+  <p id="loader-text">Charting the world…</p>
+</div>
+
+<div id="app" aria-hidden="true">
+
+  <canvas id="stars"></canvas>
+  <div id="globeViz"></div>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <h1>Atlas</h1>
+    </div>
+
+    <div class="search-wrap">
+      <input id="search" type="search" inputmode="search" autocomplete="off" autocorrect="off" spellcheck="false"
+             placeholder="Find a country…" aria-label="Search countries" />
+      <div id="search-results" role="listbox"></div>
+    </div>
+  </header>
+
+  <!-- Layer toggles -->
+  <nav class="layers" id="layers" aria-label="Map layers">
+    <button class="chip is-active" data-layer="countries">Countries</button>
+    <button class="chip is-active" data-layer="water">Oceans &amp; Seas</button>
+    <button class="chip" data-layer="terrain">Mountains &amp; Deserts</button>
+    <button class="chip" data-layer="hydro">Rivers &amp; Lakes</button>
+  </nav>
+
+  <!-- Zoom controls -->
+  <div class="zoom-controls" aria-hidden="true">
+    <button id="zoom-in" aria-label="Zoom in">+</button>
+    <button id="zoom-out" aria-label="Zoom out">−</button>
+    <button id="recenter" aria-label="Reset view">⟲</button>
+  </div>
+
+  <!-- Info panel -->
+  <section id="panel" class="panel">
+    <button id="panel-close" aria-label="Close">×</button>
+    <p class="panel-eyebrow" id="panel-kind">Country</p>
+    <h2 id="panel-title">—</h2>
+    <p id="panel-sub"></p>
+  </section>
+
+  <p class="hint" id="hint">Drag to rotate · Pinch or scroll to zoom</p>
+</div>
+
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://unpkg.com/globe.gl@2.34.5/dist/globe.gl.min.js"></script>
+<script src="data/features.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
