@@ -29,6 +29,10 @@
   const TIER_MID = 150; // between MID and FAR: + countries, seas
   // below TIER_MID: + terrain / hydro fine features (if their layer is active)
 
+  // Rotation speed tiers. 0.35 was the app's original/default speed — that is
+  // now the "0.5x" tier, with 1x and 2x scaled up from it.
+  const ROTATE_SPEEDS = { '0.5': 0.35, '1': 0.7, '2': 1.4 };
+
   const state = {
     tier: 'far',              // 'far' | 'mid' | 'near'
     mode: 'map',               // 'map' | 'satellite'
@@ -39,6 +43,8 @@
     countryLabels: [],
     userInteracted: false,
     mapTexture: null,
+    rotateSpeed: '0.5',
+    visible: true,
   };
 
   /* ---------------- Starfield (plain 2D canvas, behind the WebGL globe) ---------------- */
@@ -66,16 +72,18 @@
   }
 
   function drawStars(t) {
-    starCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    starCtx.fillStyle = '#F4F1EA';
-    for (const s of stars) {
-      const tw = s.base + Math.sin(t * s.speed + s.phase) * 0.18;
-      starCtx.globalAlpha = Math.max(0, tw);
-      starCtx.beginPath();
-      starCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      starCtx.fill();
+    if (state.visible) {
+      starCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      starCtx.fillStyle = '#F4F1EA';
+      for (const s of stars) {
+        const tw = s.base + Math.sin(t * s.speed + s.phase) * 0.18;
+        starCtx.globalAlpha = Math.max(0, tw);
+        starCtx.beginPath();
+        starCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        starCtx.fill();
+      }
+      starCtx.globalAlpha = 1;
     }
-    starCtx.globalAlpha = 1;
     requestAnimationFrame(drawStars);
   }
 
@@ -230,7 +238,9 @@
 
     state.mapTexture = buildOceanTexture();
 
-    const world = Globe()(document.getElementById('globeViz'))
+    const world = Globe({
+      rendererConfig: { antialias: true, alpha: true, powerPreference: 'high-performance' }
+    })(document.getElementById('globeViz'))
       .width(window.innerWidth)
       .height(window.innerHeight)
       .backgroundColor('rgba(0,0,0,0)')
@@ -262,6 +272,10 @@
 
     state.world = world;
 
+    // Cap device pixel ratio — uncapped DPR on high-density phone screens is
+    // the single biggest cause of dropped frames on a full-bleed WebGL canvas.
+    world.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
     // Controls — tuned for seamless, inertial rotation & zoom
     const controls = world.controls();
     controls.enableDamping = true;
@@ -271,13 +285,21 @@
     controls.minDistance = GLOBE_RADIUS + 1;   // maximum zoom-in: just above the surface
     controls.maxDistance = GLOBE_RADIUS * 5;   // maximum zoom-out
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.35;
+    controls.autoRotateSpeed = ROTATE_SPEEDS[state.rotateSpeed];
     controls.addEventListener('start', () => {
       if (!state.userInteracted) {
         state.userInteracted = true;
         easeOutAutoRotate();
         fadeHint();
       }
+    });
+
+    // Pause WebGL rendering entirely while the tab/app isn't visible —
+    // saves battery and avoids a pile-up of missed frames on return.
+    document.addEventListener('visibilitychange', () => {
+      state.visible = !document.hidden;
+      if (document.hidden) world.pauseAnimation();
+      else world.resumeAnimation();
     });
 
     // Intro camera fly-in
@@ -314,6 +336,19 @@
     openPanel('Country', name, neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.');
   }
 
+  /* ---------------- Layer bar: auto-hide so idle rotation stays clean ---------------- */
+  let layersHideTimer = null;
+  function scheduleHideLayers(delay = 4000) {
+    clearTimeout(layersHideTimer);
+    layersHideTimer = setTimeout(() => {
+      document.getElementById('layers').classList.add('is-hidden');
+    }, delay);
+  }
+  function showLayersBar() {
+    document.getElementById('layers').classList.remove('is-hidden');
+    scheduleHideLayers();
+  }
+
   /* ---------------- UI wiring ---------------- */
   function setupUI(world) {
     // Layer chips
@@ -323,12 +358,24 @@
         state.layers[layer] = !state.layers[layer];
         btn.classList.toggle('is-active', state.layers[layer]);
         refreshLabels();
+        scheduleHideLayers();
       });
     });
+
+    // Tap anywhere outside the layer bar to bring it back
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.layers')) showLayersBar();
+    });
+    scheduleHideLayers();
 
     // Map / Satellite mode switch
     document.querySelectorAll('.mode-btn').forEach(btn => {
       btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
+    // Rotation speed switch
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => setRotateSpeed(btn.dataset.speed, world));
     });
 
     // Zoom buttons — smooth, eased dolly
@@ -400,6 +447,19 @@
     }, 260);
   }
 
+  /* ---------------- Rotation speed ---------------- */
+  function setRotateSpeed(val, world) {
+    state.rotateSpeed = val;
+    document.querySelectorAll('.speed-btn').forEach(b => {
+      const active = b.dataset.speed === val;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+    const controls = world.controls();
+    controls.autoRotateSpeed = ROTATE_SPEEDS[val];
+    controls.autoRotate = true; // picking a speed resumes/keeps the globe spinning
+  }
+
   function openPanel(kind, title, sub) {
     document.getElementById('panel-kind').textContent = kind;
     document.getElementById('panel-title').textContent = title;
@@ -413,9 +473,18 @@
     document.getElementById('hint').classList.add('faded');
   }
 
+  let resizeRAF = null;
   function onResize() {
-    initStars();
-    if (state.world) state.world.width(window.innerWidth).height(window.innerHeight);
+    // Coalesce rapid-fire resize/orientation events into one update per frame.
+    if (resizeRAF) cancelAnimationFrame(resizeRAF);
+    resizeRAF = requestAnimationFrame(() => {
+      initStars();
+      if (state.world) {
+        state.world.width(window.innerWidth).height(window.innerHeight);
+        state.world.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      }
+      resizeRAF = null;
+    });
   }
 
   function revealApp() {

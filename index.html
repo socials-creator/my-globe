@@ -31,6 +31,7 @@
 <div id="app" aria-hidden="true">
 
   <canvas id="stars"></canvas>
+  <div id="sun" aria-hidden="true"></div>
   <div id="globeViz"></div>
 
   <!-- Top bar -->
@@ -59,6 +60,13 @@
   <div class="mode-switch" role="tablist" aria-label="Globe style">
     <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
     <button class="mode-btn" data-mode="satellite" role="tab" aria-selected="false">Satellite</button>
+  </div>
+
+  <!-- Rotation speed -->
+  <div class="speed-switch" role="tablist" aria-label="Rotation speed">
+    <button class="speed-btn is-active" data-speed="0.5" role="tab" aria-selected="true">0.5×</button>
+    <button class="speed-btn" data-speed="1" role="tab" aria-selected="false">1×</button>
+    <button class="speed-btn" data-speed="2" role="tab" aria-selected="false">2×</button>
   </div>
 
   <!-- Zoom controls -->
