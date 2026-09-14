@@ -59,18 +59,25 @@
   const starCtx = starCanvas.getContext('2d');
   let stars = [];
 
+  // iOS Safari's collapsing address/tab bar means window.innerHeight can briefly
+  // under-report the true visible area (leaving a gap at the bottom). visualViewport
+  // tracks the real, current visible size, so prefer it wherever we size full-bleed layers.
+  function vw() { return window.visualViewport ? window.visualViewport.width : window.innerWidth; }
+  function vh() { return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
+
   function initStars() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    starCanvas.width = window.innerWidth * dpr;
-    starCanvas.height = window.innerHeight * dpr;
-    starCanvas.style.width = window.innerWidth + 'px';
-    starCanvas.style.height = window.innerHeight + 'px';
+    const w = vw(), h = vh();
+    starCanvas.width = w * dpr;
+    starCanvas.height = h * dpr;
+    starCanvas.style.width = w + 'px';
+    starCanvas.style.height = h + 'px';
     starCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const count = Math.round((window.innerWidth * window.innerHeight) / 3200);
+    const count = Math.round((w * h) / 3200);
     stars = Array.from({ length: count }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
+      x: Math.random() * w,
+      y: Math.random() * h,
       r: Math.random() * 1.1 + 0.15,
       base: Math.random() * 0.5 + 0.15,
       phase: Math.random() * Math.PI * 2,
@@ -80,7 +87,7 @@
 
   function drawStars(t) {
     if (state.visible) {
-      starCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      starCtx.clearRect(0, 0, vw(), vh());
       starCtx.fillStyle = '#F4F1EA';
       for (const s of stars) {
         const tw = s.base + Math.sin(t * s.speed + s.phase) * 0.18;
@@ -250,24 +257,39 @@
     })(t0);
   }
 
-  function smoothZoomBy(factor, duration = 480) {
+  function smoothZoomToDistance(targetDist, duration = 550) {
     const controls = state.world.controls();
     const camera = state.world.camera();
     const dir = camera.position.clone().normalize();
     const startDist = camera.position.length();
-    let targetDist = startDist * factor;
-    targetDist = Math.max(controls.minDistance, Math.min(controls.maxDistance, targetDist));
+    const clamped = Math.max(controls.minDistance, Math.min(controls.maxDistance, targetDist));
     const t0 = performance.now();
     controls.enabled = false;
     (function step(now) {
       const p = Math.min(1, (now - t0) / duration);
       const eased = easeOutCubic(p);
-      const dist = startDist + (targetDist - startDist) * eased;
+      const dist = startDist + (clamped - startDist) * eased;
       camera.position.copy(dir.clone().multiplyScalar(dist));
       controls.update();
       if (p < 1) requestAnimationFrame(step);
       else controls.enabled = true;
     })(t0);
+  }
+
+  // Continuous zoom — each +/- tap scales the current distance smoothly,
+  // same direction the camera is already pointing.
+  function smoothZoomBy(factor, duration = 480) {
+    const camera = state.world.camera();
+    const startDist = camera.position.length();
+    smoothZoomToDistance(startDist * factor, duration);
+  }
+
+  // A single dedicated "sweet spot" distance: close enough that every country
+  // (and continent) name is visible — sits just inside the 'mid' LOD tier — while
+  // staying far enough out that the whole globe still fits on screen.
+  const LABELS_VIEW_DISTANCE = 240;
+  function snapToLabelsView() {
+    smoothZoomToDistance(LABELS_VIEW_DISTANCE, 650);
   }
 
   /* ---------------- Auto-rotate: ease out instead of a hard stop ---------------- */
@@ -289,6 +311,16 @@
     initStars();
     requestAnimationFrame(drawStars);
     window.addEventListener('resize', onResize);
+    if (window.visualViewport) {
+      // Catches iOS Safari's address/tab-bar collapsing, which changes the true
+      // visible height without always firing a plain window 'resize'.
+      window.visualViewport.addEventListener('resize', onResize);
+      window.visualViewport.addEventListener('scroll', onResize);
+    }
+    // Re-check shortly after load too — on first paint iOS sometimes reports
+    // the chrome-expanded (shorter) height before settling to its real size.
+    setTimeout(onResize, 400);
+    setTimeout(onResize, 1200);
 
     const geo = await fetch('data/world.geojson').then(r => r.json());
     state.countries = geo.features;
@@ -304,8 +336,8 @@
     const world = Globe({
       rendererConfig: { antialias: true, alpha: true, powerPreference: 'high-performance' }
     })(document.getElementById('globeViz'))
-      .width(window.innerWidth)
-      .height(window.innerHeight)
+      .width(vw())
+      .height(vh())
       .backgroundColor('rgba(0,0,0,0)')
       .globeImageUrl(state.mapTexture)
       .showAtmosphere(true)
@@ -453,6 +485,7 @@
     // Zoom buttons — smooth, eased dolly
     document.getElementById('zoom-in').addEventListener('click', () => { if (state.turbo) exitTurbo(); smoothZoomBy(0.7); });
     document.getElementById('zoom-out').addEventListener('click', () => { if (state.turbo) exitTurbo(); smoothZoomBy(1.4); });
+    document.getElementById('zoom-labels').addEventListener('click', () => { if (state.turbo) exitTurbo(); snapToLabelsView(); });
     document.getElementById('recenter').addEventListener('click', () => {
       if (state.turbo) exitTurbo();
       state.selectedD = null;
@@ -642,7 +675,7 @@
     resizeRAF = requestAnimationFrame(() => {
       initStars();
       if (state.world) {
-        state.world.width(window.innerWidth).height(window.innerHeight);
+        state.world.width(vw()).height(vh());
         state.world.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       }
       resizeRAF = null;
