@@ -48,6 +48,7 @@
     mapTexture: null,
     turboTexture: null,
     rotateSpeed: '0.5',
+    baseRotateSpeed: 0.35,
     prevRotateSpeed: '0.5',
     turbo: false,
     prevPOV: null,
@@ -247,12 +248,11 @@
   }
 
   function animateAutoRotateSpeed(target, duration, easing) {
-    const controls = state.world.controls();
-    const start = controls.autoRotateSpeed;
+    const start = state.baseRotateSpeed;
     const t0 = performance.now();
     (function step(now) {
       const p = Math.min(1, (now - t0) / duration);
-      controls.autoRotateSpeed = start + (target - start) * easing(p);
+      state.baseRotateSpeed = start + (target - start) * easing(p);
       if (p < 1) requestAnimationFrame(step);
     })(t0);
   }
@@ -295,12 +295,12 @@
   /* ---------------- Auto-rotate: ease out instead of a hard stop ---------------- */
   function easeOutAutoRotate() {
     const controls = state.world.controls();
-    const startSpeed = controls.autoRotateSpeed;
+    const startSpeed = state.baseRotateSpeed;
     const t0 = performance.now();
     const duration = 700;
     (function step(now) {
       const p = Math.min(1, (now - t0) / duration);
-      controls.autoRotateSpeed = startSpeed * (1 - easeOutCubic(p));
+      state.baseRotateSpeed = startSpeed * (1 - easeOutCubic(p));
       if (p < 1) requestAnimationFrame(step);
       else controls.autoRotate = false;
     })(t0);
@@ -381,7 +381,8 @@
     controls.minDistance = GLOBE_RADIUS + 1;   // maximum zoom-in: just above the surface
     controls.maxDistance = GLOBE_RADIUS * 5;   // maximum zoom-out
     controls.autoRotate = true;
-    controls.autoRotateSpeed = ROTATE_SPEEDS[state.rotateSpeed];
+    state.baseRotateSpeed = ROTATE_SPEEDS[state.rotateSpeed];
+    controls.autoRotateSpeed = state.baseRotateSpeed;
     controls.addEventListener('start', () => {
       if (!state.userInteracted) {
         state.userInteracted = true;
@@ -402,8 +403,21 @@
     world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 3.4 }, 0);
     setTimeout(() => world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 2400), 250);
 
-    // LOD watcher
-    (function tick() {
+    // LOD watcher + frame-rate-independent auto-rotate.
+    // three.js's OrbitControls.autoRotate assumes a fixed 60fps and advances by a
+    // constant angle every update() call — so on a 90Hz or 120Hz display it just spins
+    // faster (and can look uneven if frames aren't perfectly even). Instead we treat
+    // state.baseRotateSpeed as the *intended* speed and rescale autoRotateSpeed every
+    // frame by the real elapsed time, so the globe turns at the same true angular
+    // speed — smoothly — on any refresh rate.
+    let lastTickTime = null;
+    function tick(now) {
+      if (lastTickTime !== null) {
+        const dt = Math.min(Math.max((now - lastTickTime) / 1000, 0), 0.1); // clamp: guards a stalled/backgrounded tab
+        controls.autoRotateSpeed = state.baseRotateSpeed * dt * 60;
+      }
+      lastTickTime = now;
+
       const dist = world.camera().position.length();
       const nextTier = dist > TIER_FAR ? 'far' : dist > TIER_MID ? 'mid' : 'near';
       if (nextTier !== state.tier) {
@@ -411,7 +425,8 @@
         refreshLabels();
       }
       requestAnimationFrame(tick);
-    })();
+    }
+    requestAnimationFrame(tick);
 
     setupUI(world);
     revealApp();
@@ -570,7 +585,7 @@
       b.setAttribute('aria-selected', String(active));
     });
     const controls = world.controls();
-    controls.autoRotateSpeed = ROTATE_SPEEDS[val];
+    state.baseRotateSpeed = ROTATE_SPEEDS[val];
     controls.autoRotate = true; // picking a speed resumes/keeps the globe spinning
   }
 
