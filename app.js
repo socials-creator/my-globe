@@ -40,7 +40,7 @@
     tier: 'far',              // 'far' | 'mid' | 'near'
     mode: 'map',               // 'map' | 'satellite'
     layers: { countries: true, water: true, terrain: false, hydro: false },
-    selectedD: null,
+    selected: [],       // up to MAX_SELECTED country features, in pick order
     world: null,
     countries: [],
     countryLabels: [],
@@ -216,12 +216,17 @@
     state.world.labelsData(currentLabels());
   }
 
-  /* ---------------- Polygon styling (mode + single-selection aware) ---------------- */
+  // A comfortable ceiling for how many countries can be pinned at once — enough to
+  // compare a handful side by side without the panel turning into an endless strip.
+  const MAX_SELECTED = 6;
+  function isSelected(feat) { return state.selected.includes(feat); }
+
+  /* ---------------- Polygon styling (mode + multi-selection aware) ---------------- */
   function polygonAltitudeFn(d) {
-    return d === state.selectedD ? 0.05 : 0.006;
+    return isSelected(d) ? 0.05 : 0.006;
   }
   function polygonCapColorFn(d) {
-    if (d === state.selectedD) {
+    if (isSelected(d)) {
       return state.mode === 'satellite' ? COLORS.highlightSat : COLORS.highlight;
     }
     return state.mode === 'satellite' ? 'rgba(0,0,0,0)' : COLORS.land;
@@ -434,17 +439,40 @@
 
   function selectCountry(feat) {
     if (!feat) return;
-    // Tapping the already-selected country deselects it; otherwise it becomes the sole selection.
-    state.selectedD = (state.selectedD === feat) ? null : feat;
+    const idx = state.selected.indexOf(feat);
+    if (idx !== -1) {
+      // Tapping an already-selected country just deselects that one.
+      state.selected.splice(idx, 1);
+    } else {
+      state.selected.push(feat);
+      if (state.selected.length > MAX_SELECTED) state.selected.shift(); // drop the oldest pick
+    }
     refreshPolygonStyle();
+    renderPanel();
 
-    if (!state.selectedD) { closePanel(); return; }
+    if (!state.selected.length) { closePanel(); return; }
+    flyToSelection();
+  }
 
-    const c = d3.geoCentroid(feat);
-    state.world.pointOfView({ lat: c[1], lng: c[0], altitude: 0.55 }, 1500);
-
-    const { name, neighbors } = feat.properties;
-    openPanel('Country', name, neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.');
+  // Frames the camera around every selected country. A single pick zooms in close;
+  // multiple picks average their centroids and zoom out enough — based on how spread
+  // out they are — to keep all of them on screen together.
+  function flyToSelection() {
+    const centroids = state.selected.map(f => d3.geoCentroid(f)); // [lng, lat]
+    if (centroids.length === 1) {
+      const c = centroids[0];
+      state.world.pointOfView({ lat: c[1], lng: c[0], altitude: 0.55 }, 1500);
+      return;
+    }
+    const avgLng = centroids.reduce((s, c) => s + c[0], 0) / centroids.length;
+    const avgLat = centroids.reduce((s, c) => s + c[1], 0) / centroids.length;
+    let maxSpread = 0;
+    centroids.forEach(c => {
+      const d = Math.hypot(c[0] - avgLng, c[1] - avgLat);
+      if (d > maxSpread) maxSpread = d;
+    });
+    const altitude = Math.min(3.2, Math.max(0.6, 0.45 + maxSpread * 0.028));
+    state.world.pointOfView({ lat: avgLat, lng: avgLng, altitude }, 1500);
   }
 
   /* ---------------- Idle UI: layers / dock / search all fade together so
@@ -503,15 +531,15 @@
     document.getElementById('zoom-labels').addEventListener('click', () => { if (state.turbo) exitTurbo(); snapToLabelsView(); });
     document.getElementById('recenter').addEventListener('click', () => {
       if (state.turbo) exitTurbo();
-      state.selectedD = null;
+      state.selected = [];
       refreshPolygonStyle();
       closePanel();
       world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 1300);
     });
 
-    // Panel close
-    document.getElementById('panel-close').addEventListener('click', () => {
-      state.selectedD = null;
+    // Panel: clear every pinned country at once
+    document.getElementById('panel-clear').addEventListener('click', () => {
+      state.selected = [];
       refreshPolygonStyle();
       closePanel();
     });
@@ -535,10 +563,9 @@
         item.textContent = f.properties.name;
         item.addEventListener('click', () => {
           if (state.turbo) exitTurbo();
-          state.selectedD = null; // ensure the new pick becomes the sole selection
-          selectCountry(f);
+          selectCountry(f); // adds to the current pin selection (tap again elsewhere to remove)
           results.classList.remove('open');
-          input.value = f.properties.name;
+          input.value = '';
           input.blur();
         });
         results.appendChild(item);
@@ -609,7 +636,7 @@
 
     clearTimeout(uiHideTimer);
     document.getElementById('layers').classList.add('is-hidden');
-    state.selectedD = null;
+    state.selected = [];
     refreshPolygonStyle();
     closePanel();
 
@@ -670,10 +697,31 @@
     scheduleHideUI();
   }
 
-  function openPanel(kind, title, sub) {
-    document.getElementById('panel-kind').textContent = kind;
-    document.getElementById('panel-title').textContent = title;
-    document.getElementById('panel-sub').textContent = sub;
+  function renderPanel() {
+    const kindEl = document.getElementById('panel-kind');
+    const cardsEl = document.getElementById('panel-cards');
+    kindEl.textContent = state.selected.length > 1 ? `${state.selected.length} countries` : 'Country';
+    cardsEl.innerHTML = '';
+    state.selected.forEach(feat => {
+      const { name, neighbors } = feat.properties;
+      const card = document.createElement('div');
+      card.className = 'panel-card';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'panel-card-close';
+      closeBtn.setAttribute('aria-label', `Deselect ${name}`);
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', (e) => { e.stopPropagation(); selectCountry(feat); });
+
+      const h3 = document.createElement('h3');
+      h3.textContent = name;
+
+      const p = document.createElement('p');
+      p.textContent = neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.';
+
+      card.append(closeBtn, h3, p);
+      cardsEl.appendChild(card);
+    });
     document.getElementById('panel').classList.add('open');
   }
   function closePanel() {

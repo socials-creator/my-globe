@@ -79,12 +79,13 @@
     </div>
   </div>
 
-  <!-- Info panel -->
+  <!-- Info panel: one horizontally-scrollable card per pinned country -->
   <section id="panel" class="panel">
-    <button id="panel-close" aria-label="Close">×</button>
-    <p class="panel-eyebrow" id="panel-kind">Country</p>
-    <h2 id="panel-title">—</h2>
-    <p id="panel-sub"></p>
+    <div class="panel-header">
+      <p class="panel-eyebrow" id="panel-kind">Country</p>
+      <button id="panel-clear" class="panel-clear">Clear all</button>
+    </div>
+    <div class="panel-cards" id="panel-cards"></div>
   </section>
 
   <p class="hint" id="hint">Drag to rotate · Pinch or scroll to zoom</p>
