@@ -119,10 +119,16 @@ html, body{
 #globeViz{
   position: fixed; inset: 0; z-index: 1;
   opacity: 1;
-  transition: opacity .26s ease, filter .5s ease;
+  transition: opacity .26s ease, filter .5s ease, transform .6s cubic-bezier(.22,.9,.3,1);
 }
 #globeViz.crossfade{ opacity: 0.12; }
 #globeViz canvas{ outline: none; }
+
+/* Nudges the globe down clear of a notch/Dynamic Island at the wide, all-labels
+   zoom level — a plain on-screen shift, the 3D projection itself is untouched. */
+#globeViz.notch-shift{
+  transform: translateY(calc(var(--safe-t) + 10px));
+}
 
 /* ---------- Turbo: fun, lightweight cartoon spin mode ---------- */
 body.turbo #globeViz{
@@ -413,6 +419,7 @@ body.turbo #globeViz{
    portrait-narrow, it just reveals fewer or more cards at a glance. */
 .panel-cards{
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -437,7 +444,7 @@ body.turbo #globeViz{
   font-size: 17px;
   color: #5BC97F;
 }
-.panel-card p{
+.panel-card-borders{
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
@@ -447,6 +454,24 @@ body.turbo #globeViz{
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.panel-card-borders.expanded{
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.panel-card-more{
+  display: block;
+  margin: 5px 0 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--accent);
+  cursor: pointer;
+}
+.panel-card-more:active{ color: var(--cream); }
 .panel-card-close{
   position: absolute; top: 8px; right: 8px;
   width: 22px; height: 22px;

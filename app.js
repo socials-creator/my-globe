@@ -284,16 +284,30 @@
   // Continuous zoom — each +/- tap scales the current distance smoothly,
   // same direction the camera is already pointing.
   function smoothZoomBy(factor, duration = 480) {
+    clearGlobeShift();
     const camera = state.world.camera();
     const startDist = camera.position.length();
     smoothZoomToDistance(startDist * factor, duration);
   }
 
+  // Nudges the rendered globe down on-screen, clear of a notch/Dynamic Island that
+  // would otherwise sit right over the top of it at this wide-open zoom level.
+  // A plain CSS shift of the canvas — the 3D projection itself is untouched, the
+  // whole rendered frame just moves down — so nothing about the globe distorts.
+  function shiftGlobeForNotch() {
+    document.getElementById('globeViz').classList.add('notch-shift');
+  }
+  function clearGlobeShift() {
+    document.getElementById('globeViz').classList.remove('notch-shift');
+  }
+
   // A single dedicated "sweet spot" distance: close enough that every country
   // (and continent) name is visible — sits just inside the 'mid' LOD tier — while
-  // staying far enough out that the whole globe still fits on screen.
+  // staying far enough out that the whole globe, both poles included, still fits
+  // on screen (and clear of any notch/Dynamic Island up top).
   const LABELS_VIEW_DISTANCE = 240;
   function snapToLabelsView() {
+    shiftGlobeForNotch();
     smoothZoomToDistance(LABELS_VIEW_DISTANCE, 650);
   }
 
@@ -389,6 +403,7 @@
     state.baseRotateSpeed = ROTATE_SPEEDS[state.rotateSpeed];
     controls.autoRotateSpeed = state.baseRotateSpeed;
     controls.addEventListener('start', () => {
+      clearGlobeShift(); // a manual drag/pinch means the user is repositioning it themselves
       if (!state.userInteracted) {
         state.userInteracted = true;
         easeOutAutoRotate();
@@ -458,6 +473,7 @@
   // multiple picks average their centroids and zoom out enough — based on how spread
   // out they are — to keep all of them on screen together.
   function flyToSelection() {
+    clearGlobeShift();
     const centroids = state.selected.map(f => d3.geoCentroid(f)); // [lng, lat]
     if (centroids.length === 1) {
       const c = centroids[0];
@@ -531,6 +547,7 @@
     document.getElementById('zoom-labels').addEventListener('click', () => { if (state.turbo) exitTurbo(); snapToLabelsView(); });
     document.getElementById('recenter').addEventListener('click', () => {
       if (state.turbo) exitTurbo();
+      clearGlobeShift();
       state.selected = [];
       refreshPolygonStyle();
       closePanel();
@@ -636,6 +653,7 @@
 
     clearTimeout(uiHideTimer);
     document.getElementById('layers').classList.add('is-hidden');
+    clearGlobeShift();
     state.selected = [];
     refreshPolygonStyle();
     closePanel();
@@ -717,10 +735,28 @@
       h3.textContent = name;
 
       const p = document.createElement('p');
+      p.className = 'panel-card-borders';
       p.textContent = neighbors && neighbors.length ? `Borders ${neighbors.join(', ')}` : 'An island nation with no land borders.';
 
       card.append(closeBtn, h3, p);
       cardsEl.appendChild(card);
+
+      // Only every neighbor already fits within the 3-line clamp for some cards;
+      // for the rest, offer a tap to read the full list instead of just cutting it off.
+      requestAnimationFrame(() => {
+        if (p.scrollHeight > p.clientHeight + 1) {
+          const more = document.createElement('button');
+          more.className = 'panel-card-more';
+          more.type = 'button';
+          more.textContent = 'More';
+          more.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const expanded = p.classList.toggle('expanded');
+            more.textContent = expanded ? 'Less' : 'More';
+          });
+          card.appendChild(more);
+        }
+      });
     });
     document.getElementById('panel').classList.add('open');
   }
