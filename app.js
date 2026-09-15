@@ -6,9 +6,9 @@
   const SATELLITE_TEXTURE_URL = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 
   const COLORS = {
-    ocean:     '#04122B',   // electric-blue deep base
-    oceanMid:  '#0A6CFF',   // electric blue
-    grid:      '#1958C7',
+    ocean:     '#04122B',   // deep base
+    oceanMid:  '#2E6690',   // calm, muted blue — easy on the eyes
+    grid:      '#2C4F73',
     land:      '#232226',   // dark land
     landEdgeMap: 'rgba(244,241,234,0.30)',
     landEdgeSat: 'rgba(244,241,234,0.85)',
@@ -116,14 +116,14 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // subtle radial glow band to keep the blue feeling electric, not flat
+    // subtle radial glow band — soft, not electric
     const glow = ctx.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, h * 0.9);
-    glow.addColorStop(0, 'rgba(90,170,255,0.35)');
-    glow.addColorStop(1, 'rgba(90,170,255,0)');
+    glow.addColorStop(0, 'rgba(110,150,185,0.22)');
+    glow.addColorStop(1, 'rgba(110,150,185,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = 'rgba(120,190,255,0.16)';
+    ctx.strokeStyle = 'rgba(140,175,205,0.12)';
     ctx.lineWidth = 1;
     for (let lng = 0; lng <= w; lng += w / 12) { // every 30deg
       ctx.beginPath(); ctx.moveTo(lng, 0); ctx.lineTo(lng, h); ctx.stroke();
@@ -132,7 +132,7 @@
       ctx.beginPath(); ctx.moveTo(0, lat); ctx.lineTo(w, lat); ctx.stroke();
     }
     // equator + prime meridian, slightly stronger
-    ctx.strokeStyle = 'rgba(190,225,255,0.22)';
+    ctx.strokeStyle = 'rgba(190,210,225,0.18)';
     ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
 
@@ -218,7 +218,7 @@
 
   // A comfortable ceiling for how many countries can be pinned at once — enough to
   // compare a handful side by side without the panel turning into an endless strip.
-  const MAX_SELECTED = 6;
+  const MAX_SELECTED = 7;
   function isSelected(feat) { return state.selected.includes(feat); }
 
   /* ---------------- Polygon styling (mode + multi-selection aware) ---------------- */
