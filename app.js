@@ -25,9 +25,17 @@
   };
 
   // Camera-distance tiers (world units from globe centre). Larger = further away.
-  const TIER_FAR = 250; // above this: continents + oceans only
+  const TIER_FAR = 300; // above this: continents + oceans only
   const TIER_MID = 150; // between MID and FAR: + countries, seas
   // below TIER_MID: + terrain / hydro fine features (if their layer is active)
+
+  // The one shared "default" distance/altitude — first launch, the reset button,
+  // and the "Aa" button all land here: the widest zoom the 'mid' tier still allows
+  // (so every country name is visible), which is also far enough out for the
+  // whole globe, both poles included, to fit on screen clear of a notch/Dynamic
+  // Island up top. TIER_FAR above is set together with this value for that reason.
+  const DEFAULT_VIEW_DISTANCE = 295;
+  const DEFAULT_VIEW_ALTITUDE = DEFAULT_VIEW_DISTANCE / GLOBE_RADIUS - 1;
 
   // Rotation speed tiers. 0.35 was the app's original/default speed — that is
   // now the "0.5x" tier, with 1x and 2x scaled up from it.
@@ -284,31 +292,13 @@
   // Continuous zoom — each +/- tap scales the current distance smoothly,
   // same direction the camera is already pointing.
   function smoothZoomBy(factor, duration = 480) {
-    clearGlobeShift();
     const camera = state.world.camera();
     const startDist = camera.position.length();
     smoothZoomToDistance(startDist * factor, duration);
   }
 
-  // Nudges the rendered globe down on-screen, clear of a notch/Dynamic Island that
-  // would otherwise sit right over the top of it at this wide-open zoom level.
-  // A plain CSS shift of the canvas — the 3D projection itself is untouched, the
-  // whole rendered frame just moves down — so nothing about the globe distorts.
-  function shiftGlobeForNotch() {
-    document.getElementById('globeViz').classList.add('notch-shift');
-  }
-  function clearGlobeShift() {
-    document.getElementById('globeViz').classList.remove('notch-shift');
-  }
-
-  // A single dedicated "sweet spot" distance: close enough that every country
-  // (and continent) name is visible — sits just inside the 'mid' LOD tier — while
-  // staying far enough out that the whole globe, both poles included, still fits
-  // on screen (and clear of any notch/Dynamic Island up top).
-  const LABELS_VIEW_DISTANCE = 240;
   function snapToLabelsView() {
-    shiftGlobeForNotch();
-    smoothZoomToDistance(LABELS_VIEW_DISTANCE, 650);
+    smoothZoomToDistance(DEFAULT_VIEW_DISTANCE, 650);
   }
 
   /* ---------------- Auto-rotate: ease out instead of a hard stop ---------------- */
@@ -403,7 +393,6 @@
     state.baseRotateSpeed = ROTATE_SPEEDS[state.rotateSpeed];
     controls.autoRotateSpeed = state.baseRotateSpeed;
     controls.addEventListener('start', () => {
-      clearGlobeShift(); // a manual drag/pinch means the user is repositioning it themselves
       if (!state.userInteracted) {
         state.userInteracted = true;
         easeOutAutoRotate();
@@ -421,7 +410,7 @@
 
     // Intro camera fly-in
     world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 3.4 }, 0);
-    setTimeout(() => world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 2400), 250);
+    setTimeout(() => world.pointOfView({ lat: 23.48, lng: 80.12, altitude: DEFAULT_VIEW_ALTITUDE }, 2400), 250);
 
     // LOD watcher + frame-rate-independent auto-rotate.
     // three.js's OrbitControls.autoRotate assumes a fixed 60fps and advances by a
@@ -473,7 +462,6 @@
   // multiple picks average their centroids and zoom out enough — based on how spread
   // out they are — to keep all of them on screen together.
   function flyToSelection() {
-    clearGlobeShift();
     const centroids = state.selected.map(f => d3.geoCentroid(f)); // [lng, lat]
     if (centroids.length === 1) {
       const c = centroids[0];
@@ -547,11 +535,10 @@
     document.getElementById('zoom-labels').addEventListener('click', () => { if (state.turbo) exitTurbo(); snapToLabelsView(); });
     document.getElementById('recenter').addEventListener('click', () => {
       if (state.turbo) exitTurbo();
-      clearGlobeShift();
       state.selected = [];
       refreshPolygonStyle();
       closePanel();
-      world.pointOfView({ lat: 23.48, lng: 80.12, altitude: 2.15 }, 1300);
+      world.pointOfView({ lat: 23.48, lng: 80.12, altitude: DEFAULT_VIEW_ALTITUDE }, 1300);
     });
 
     // Panel: clear every pinned country at once
@@ -653,7 +640,6 @@
 
     clearTimeout(uiHideTimer);
     document.getElementById('layers').classList.add('is-hidden');
-    clearGlobeShift();
     state.selected = [];
     refreshPolygonStyle();
     closePanel();
